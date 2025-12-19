@@ -2,12 +2,17 @@ package main
 
 import (
 	"drid/internal/epp"
+	"drid/internal/epp/handlers"
+	"drid/internal/epp/services"
 	"log"
 	"net"
 )
 
 func main() {
-	eppHandler := epp.NewEPPHandler()
+	authService := services.NewAuthService()
+	commandHandler := handlers.NewCommandHandler(authService)
+	router := handlers.NewRouter(commandHandler)
+	processor := epp.NewRequestProcessor(router)
 
 	ln, err := net.Listen("tcp", ":7000")
 	if err != nil {
@@ -32,7 +37,7 @@ func main() {
 				c.Close()
 				log.Printf("Connection closed from %s", addr)
 			}()
-			eppHandler.Handle(c)
+			processor.Handle(c)
 		}(conn, remoteAddr)
 	}
 }
