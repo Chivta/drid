@@ -5,6 +5,7 @@ import (
 	"log"
 	"net"
 	"drid/pkg/db"
+	"strings"
 )
 
 func NewWhoisServer(db *db.DB) *WhoisServer {
@@ -55,12 +56,13 @@ func (s *WhoisServer) handleWhoisRequest(conn net.Conn) {
 	}
 
 	log.Printf("Request: %s\n",request)
-
+	request = strings.TrimRight(request, "\r\n")
 	response,err := s.db.Whois(request)
 	if err != nil {
 		log.Printf("Error processing WHOIS request: %v", err)
 		response = "Error processing request\n"
 	}
+	log.Printf("Response: %s\n",response)
 	writer.WriteString(response)
 	writer.Flush()
 }

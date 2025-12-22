@@ -2,12 +2,16 @@ package db
 
 import (
 	"database/sql"
+	"fmt"
 )
 
 func (db *DB) Whois(domain string) (string, error) {
 	var info string
-	err := db.conn.QueryRow(`SELECT uanic_data.whois_exec(E'<whois type="normal" obj="$1" attr=""><name>$2</name></whois>'::text)`,
-	"domain", domain).Scan(&info)
+	xml := fmt.Sprintf(`<whois type="normal" obj="%s" attr=""><name>%s</name></whois>`, "domain", domain)
+	query := fmt.Sprintf(`SELECT uanic_data.whois_exec(E'%s'::text);`,xml)
+	
+	err := db.conn.QueryRow(query).Scan(&info)
+
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return "", nil 
