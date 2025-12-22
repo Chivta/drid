@@ -6,6 +6,7 @@ import (
 	"log"
 	"net"
 	"drid/internal/epp/handlers"
+	"drid/internal/epp/services"
 	"drid/internal/epp/types"
 )
 
@@ -19,9 +20,41 @@ func NewRequestProcessor(router *handlers.Router) *RequestProcessor {
 	}
 }
 
+func ListenForEPPConnections(address string) error {
+	authService := services.NewAuthService()
+	commandHandler := handlers.NewCommandHandler(authService)
+	router := handlers.NewRouter(commandHandler)
+	processor := NewRequestProcessor(router)
+
+	ln, err := net.Listen("tcp", ":7000")
+	if err != nil {
+		log.Fatalf("Could not start server: %v", err)
+	}
+	defer ln.Close()
+
+	log.Println("EPP server started successfully on :7000")
+
+	for {
+		conn, err := ln.Accept()
+		if err != nil {
+			log.Printf("Could not accept connection: %v", err)
+			continue
+		}
+
+		remoteAddr := conn.RemoteAddr().String()
+		log.Printf("New connection accepted from %s", remoteAddr)
+
+		go func(c net.Conn, addr string) {
+			defer func() {
+				c.Close()
+				log.Printf("Connection closed from %s", addr)
+			}()
+			processor.Handle(c)
+		}(conn, remoteAddr)
+	}
+}
+
 func (p *RequestProcessor) Handle(conn net.Conn) {
-	defer conn.Close()
-	
 	connection := NewConnection(conn)
 	client := &types.Client{}
 	
