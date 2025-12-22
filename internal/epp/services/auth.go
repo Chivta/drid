@@ -2,13 +2,17 @@ package services
 
 import (
 	"log"
+	"drid/pkg/db"
 )
 
-func NewAuthService() *AuthService {
-	return &AuthService{}
+func NewAuthService(db *db.DB) *AuthService {
+	return &AuthService{
+		db: db,
+	}
 }
 
 type AuthService struct {
+	db *db.DB
 }
 
 func (s *AuthService) Authenticate(clientID, password string) error {

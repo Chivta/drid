@@ -4,9 +4,18 @@ import (
 	"bufio"
 	"log"
 	"net"
+	"drid/pkg/db"
 )
 
-func ListenForWhoisConnections(address string) error {
+func NewWhoisServer(db *db.DB) *WhoisServer {
+	return &WhoisServer{db: db}
+}
+
+type WhoisServer struct {
+	db *db.DB
+}
+
+func (s *WhoisServer) ListenForWhoisConnections(address string) error {
 	ln, err := net.Listen("tcp", address)
 	if err != nil {
 		log.Fatalf("Could not start WHOIS server: %v", err)
@@ -30,12 +39,12 @@ func ListenForWhoisConnections(address string) error {
 				c.Close()
 				log.Printf("WHOIS connection closed from %s", addr)
 			}()
-			HandleWhoisRequest(c)
+			s.handleWhoisRequest(c)
 		}(conn, remoteAddr)
 	}
 }
 
-func HandleWhoisRequest(conn net.Conn) {
+func (s *WhoisServer) handleWhoisRequest(conn net.Conn) {
 	reader := bufio.NewReader(conn)
 	writer := bufio.NewWriter(conn)
 
@@ -47,7 +56,11 @@ func HandleWhoisRequest(conn net.Conn) {
 
 	log.Printf("Request: %s\n",request)
 
-	response := "Domain not found\n"
+	response,err := s.db.Whois(request)
+	if err != nil {
+		log.Printf("Error processing WHOIS request: %v", err)
+		response = "Error processing request\n"
+	}
 	writer.WriteString(response)
 	writer.Flush()
 }

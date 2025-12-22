@@ -1,27 +1,27 @@
 package epp
 
 import (
-	"encoding/xml"
-	"io"
 	"log"
 	"net"
 	"drid/internal/epp/handlers"
 	"drid/internal/epp/services"
-	"drid/internal/epp/types"
+	"drid/pkg/db"
 )
 
-type RequestProcessor struct {
-	router *handlers.Router
-}
 
-func NewRequestProcessor(router *handlers.Router) *RequestProcessor {
-	return &RequestProcessor{
-		router: router,
+
+func NewEppServer(db *db.DB) *EPPServer {
+	return &EPPServer{
+		db: db,
 	}
 }
 
-func ListenForEPPConnections(address string) error {
-	authService := services.NewAuthService()
+type EPPServer struct {
+	db *db.DB
+}
+
+func (s *EPPServer) ListenForEPPConnections(address string) error {
+	authService := services.NewAuthService(s.db)
 	commandHandler := handlers.NewCommandHandler(authService)
 	router := handlers.NewRouter(commandHandler)
 	processor := NewRequestProcessor(router)
@@ -52,75 +52,4 @@ func ListenForEPPConnections(address string) error {
 			processor.Handle(c)
 		}(conn, remoteAddr)
 	}
-}
-
-func (p *RequestProcessor) Handle(conn net.Conn) {
-	connection := NewConnection(conn)
-	client := &types.Client{}
-	
-	greeting := &types.EPPResponse{
-		Greeting: &types.Greeting{
-			ServerID:   "EPP Server v1.0",
-			ServerDate: "2025-12-19T00:00:00Z",
-		},
-	}
-	greetingXML, err := xml.Marshal(greeting)
-	if err != nil {
-		log.Printf("Failed to marshal greeting: %v", err)
-		return
-	}
-	
-	err = connection.WriteMessage(greetingXML)
-	if err != nil {
-		log.Printf("Failed to send greeting: %v", err)
-		return
-	}
-	
-	for {
-		rawXML, err := connection.ReadMessage()
-		if err != nil {
-			if err != io.EOF {
-				log.Printf("Failed to read message: %v", err)
-			}
-			return
-		}
-		
-		responseXML, err := p.ProcessRequest(client, string(rawXML))
-		if err != nil {
-			log.Printf("Failed to process request: %v", err)
-			return
-		}
-		
-		if responseXML != nil {
-			err = connection.WriteMessage(responseXML)
-			if err != nil {
-				log.Printf("Failed to send response: %v", err)
-				return
-			}
-		}
-	}
-}
-
-func (p *RequestProcessor) ProcessRequest(client *types.Client, rawXML string) ([]byte, error) {
-	request := &types.EPPRequest{}
-	err := xml.Unmarshal([]byte(rawXML), request)
-	if err != nil {
-		return nil, err
-	}
-
-	response, err := p.router.HandleRequest(client, request)
-	if err != nil {
-		return nil, err
-	}
-
-	if response == nil {
-		return nil, nil
-	}
-
-	responseXML, err := xml.Marshal(response)
-	if err != nil {
-		return nil, err
-	}
-
-	return responseXML, nil
 }
